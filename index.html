@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#111111" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Note → Jira</title>
+
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <!-- iOS icon fallback (optionnel): ajoute un png 180x180 nommé apple-touch-icon.png -->
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      display: flex;
+      min-height: 100vh;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: Canvas;
+      color: CanvasText;
+    }
+    .card {
+      width: min(720px, 100%);
+      border: 1px solid rgba(127,127,127,.25);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 8px 30px rgba(0,0,0,.10);
+      background: rgba(127,127,127,.06);
+      backdrop-filter: blur(6px);
+    }
+    h1 { font-size: 18px; margin: 0 0 10px; opacity: .9; }
+    textarea {
+      width: 100%;
+      min-height: 46vh;
+      resize: vertical;
+      padding: 14px;
+      font-size: 16px;
+      line-height: 1.35;
+      border-radius: 12px;
+      border: 1px solid rgba(127,127,127,.35);
+      background: Canvas;
+      color: CanvasText;
+      outline: none;
+    }
+    .row {
+      display: flex;
+      gap: 10px;
+      margin-top: 12px;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+    button {
+      appearance: none;
+      border: none;
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      background: #111;
+      color: #fff;
+    }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .ghost {
+      background: transparent;
+      color: CanvasText;
+      border: 1px solid rgba(127,127,127,.35);
+      font-weight: 600;
+    }
+    .status {
+      font-size: 14px;
+      opacity: .85;
+      padding: 6px 0;
+    }
+    .hint { font-size: 12px; opacity: .65; margin-top: 8px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+  </style>
+</head>
+
+<body>
+  <main class="card">
+    <h1>Note → Jira</h1>
+
+    <textarea id="note" placeholder="Tape ta note… (ex: discuté HAMEAU DES BRONZIERS avec M. INTEL)"></textarea>
+
+    <div class="row">
+      <div class="status" id="status">Prêt.</div>
+      <div style="display:flex; gap:10px;">
+        <button class="ghost" id="clearBtn" type="button">Effacer</button>
+        <button id="sendBtn" type="button">Envoyer</button>
+      </div>
+    </div>
+
+    <div class="hint">
+      Astuce: mets le projet en MAJUSCULES dans ta phrase pour une détection ultra fiable (au début).
+      <span class="mono">HAMEAU DES BRONZIERS</span>
+    </div>
+  </main>
+
+  <script>
+    // 1) COLLE ICI ton webhook Make :
+    const MAKE_WEBHOOK_URL = https://hook.eu1.make.com/eb4ao9rerkixk1418rr29b3thcnotrk0;
+
+    const noteEl = document.getElementById("note");
+    const statusEl = document.getElementById("status");
+    const sendBtn = document.getElementById("sendBtn");
+    const clearBtn = document.getElementById("clearBtn");
+
+    // Autofocus direct (UX)
+    window.addEventListener("load", () => {
+      setTimeout(() => noteEl.focus(), 50);
+    });
+
+    // Register Service Worker (PWA)
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("./sw.js").catch(() => {});
+    }
+
+    function setStatus(msg) { statusEl.textContent = msg; }
+
+    clearBtn.addEventListener("click", () => {
+      noteEl.value = "";
+      noteEl.focus();
+      setStatus("Effacé.");
+    });
+
+    async function send() {
+      const text = (noteEl.value || "").trim();
+      if (!text) { setStatus("Écris une note d’abord."); noteEl.focus(); return; }
+      if (!MAKE_WEBHOOK_URL || MAKE_WEBHOOK_URL.includes(https://hook.eu1.make.com/eb4ao9rerkixk1418rr29b3thcnotrk0)) {
+        setStatus("⚠️ Webhook Make non configuré.");
+        return;
+      }
+
+      sendBtn.disabled = true;
+      clearBtn.disabled = true;
+      setStatus("Envoi…");
+
+      try {
+        const payload = {
+          text,
+          source: "pwa",
+          ts: new Date().toISOString(),
+          userAgent: navigator.userAgent
+        };
+
+        const res = await fetch(MAKE_WEBHOOK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error("HTTP " + res.status);
+
+        setStatus("✅ Envoyé.");
+        noteEl.value = "";
+        noteEl.focus();
+      } catch (e) {
+        setStatus("❌ Échec envoi. Vérifie la connexion / webhook.");
+      } finally {
+        sendBtn.disabled = false;
+        clearBtn.disabled = false;
+      }
+    }
+
+    sendBtn.addEventListener("click", send);
+
+    // “Enter” pour envoyer, “Shift+Enter” pour saut de ligne
+    noteEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        send();
+      }
+    });
+  </script>
+</body>
+</html>
